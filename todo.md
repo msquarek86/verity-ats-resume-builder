@@ -1,0 +1,21 @@
+# Project TODO
+
+- [x] Define evidence-first resume, job description, requirement-match, tailored-version, and quality-gate data models.
+- [x] Implement strict truth validation so generated claims are traceable to source-resume evidence.
+- [x] Add resume text input and a secure upload-ready intake surface for PDF and DOCX documents.
+- [x] Add job-description intake with target-job and target-company fields.
+- [x] Build structured resume parsing for candidate details, experience, skills, education, and source-evidence references.
+- [x] Build structured job-description analysis for required and preferred skills, responsibilities, qualifications, and prioritized keywords.
+- [x] Implement four-tier evidence-based matching: exact, semantic, related, and insufficient-evidence.
+- [x] Implement explainable weighted ATS compatibility scoring with category breakdowns and actionable gap guidance.
+- [x] Implement grounded resume rewriting with Strict Truth Mode enabled by default.
+- [x] Build a premium responsive workspace for intake, job intelligence, matching, optimization, review, and export.
+- [x] Add user controls for target role, company, tone, seniority, template, length, optimization level, and section preferences.
+- [x] Build before-and-after comparison and truth-guard review interfaces.
+- [x] Add master-resume preservation and tailored-resume version storage.
+- [x] Implement export quality checks for critical formatting, completeness, keyword-stuffing, and evidence issues.
+- [x] Provide a safe PDF/DOCX export pathway after the quality gate passes and is re-run for every export action.
+- [x] Add automated tests for matching, scoring, truth validation, and quality gate behavior.
+- [x] Verify responsive rendering and guided-example intake in the browser.
+- [x] Verify the live AI analysis response and exported review state in the browser.
+- [x] Prepare repository documentation and a final project checkpoint.
