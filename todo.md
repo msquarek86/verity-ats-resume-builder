@@ -24,5 +24,5 @@
 - [x] Prepare concise GitHub-profile showcase guidance for the Verity project.
 - [x] Prepare repository metadata for GitHub publication as verity-ats-resume-builder.
 - [x] Confirm the user-facing GitHub export path and provide full-stack hosting guidance.
-- [ ] Change the GitHub repository visibility to public if the user explicitly confirms that choice.
+- [x] Defer the GitHub repository visibility change per the user's instruction; it remains private for now.
 - [x] Add the published Verity URL to the GitHub README and synchronize the repository.
