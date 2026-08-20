@@ -6,6 +6,12 @@ Verity is a full-stack resume optimization workspace for candidates who want to 
 
 The product deliberately treats an ATS score as an **internal optimization estimate**, not as a promise that any employer’s system will accept a resume.
 
+## Live demo
+
+**[Open the live Verity app](https://ats-resume-xs7wcjtr.manus.space)**
+
+The demonstration environment includes the complete full-stack workflow: document intake, evidence-mapped analysis, grounded tailoring, quality-gated export preparation, and tailored-version persistence.
+
 ## Product principles
 
 | Principle | How it is implemented |
