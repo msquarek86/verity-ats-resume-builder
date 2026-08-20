@@ -12,6 +12,18 @@ The product deliberately treats an ATS score as an **internal optimization estim
 
 The demonstration environment includes the complete full-stack workflow: document intake, evidence-mapped analysis, grounded tailoring, quality-gated export preparation, and tailored-version persistence.
 
+## Product walkthrough
+
+The following screenshots use Verity’s built-in synthetic guided example. They do not contain a user-provided resume or real candidate information.
+
+### Evidence-first intake and tailoring controls
+
+![Verity guided intake and tailoring controls](https://ats-resume-xs7wcjtr.manus.space/manus-storage/verity-guided-intake_d1c1a7b9.webp)
+
+### Truth-aware quality gate and exports
+
+![Verity final quality gate with text, PDF, and DOCX preparation](https://ats-resume-xs7wcjtr.manus.space/manus-storage/verity-quality-gate_598b8d80.webp)
+
 ## Product principles
 
 | Principle | How it is implemented |

@@ -39,3 +39,17 @@ The corrected direct invocation located and clicked the Text control, but no pre
 After the extended validation interval, the prepared-download link appeared with the expected `tailored-resume.txt` filename and success message, confirming the quality-gated preparation flow. The prepared link was activated; browser download history will now be checked for the retrieved artifact.
 
 Browser download history confirmed the retrieved `tailored-resume.txt` artifact. This validates the export sequence: fresh quality-gate recheck, prepared download link, and user-triggered retrieval.
+
+For the current recruiter-facing verification, the browser was opened with the built-in synthetic guided example. The example contains placeholder candidate details only and is appropriate for sanitized screenshots; no user-provided resume content was used.
+
+The synthetic guided analysis completed successfully and rendered the score, evidence tiers, claim provenance, passing quality gate, and clearly labelled **Prepare PDF** control. The next step is to confirm that PDF preparation produces a downloadable, quality-gated artifact.
+
+The PDF preparation action was triggered from the passing synthetic review. The export-time recheck returned to the review state, but the prepared-download link was not yet visible after the initial wait; a longer verification interval is being used before classifying the result.
+
+The initial long wait did not show a prepared artifact, so the verified PDF control was invoked directly in the page. It located the control successfully; the browser will now be given a fresh validation interval before the resulting download link is checked.
+
+After the direct invocation and extended validation interval, the page rendered a `tailored-resume.pdf` prepared-download link. The link was activated successfully; browser download history will be used to confirm retrieval.
+
+Browser download history confirmed retrieval of `tailored-resume.pdf`. The quality-gated PDF export flow is therefore verified end to end using the synthetic guided example.
+
+Two recruiter-facing screenshots were reviewed before publication. The first uses only the synthetic guided example and shows source intake plus tailoring controls. The second shows only synthetic claim provenance and the passing quality gate with export actions. Neither image contains user-provided resume content.
