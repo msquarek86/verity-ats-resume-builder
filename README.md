@@ -12,6 +12,12 @@ The product deliberately treats an ATS score as an **internal optimization estim
 
 The demonstration environment includes the complete full-stack workflow: document intake, evidence-mapped analysis, grounded tailoring, quality-gated export preparation, and tailored-version persistence.
 
+## 72-second product walkthrough
+
+[![Watch the 72-second Verity walkthrough](https://ats-resume-xs7wcjtr.manus.space/manus-storage/verity-walkthrough-poster_c7ea93b2.webp)](https://ats-resume-xs7wcjtr.manus.space/manus-storage/verity-walkthrough_28ac3ffe.mp4)
+
+**[Watch the sanitized 72-second walkthrough](https://ats-resume-xs7wcjtr.manus.space/manus-storage/verity-walkthrough_28ac3ffe.mp4)**. It uses only Verity’s synthetic guided example and demonstrates source intake, evidence-aware ATS review, tailored-version tracking, and quality-gated PDF/DOCX exports.
+
 ## Product walkthrough
 
 The following screenshots use Verity’s built-in synthetic guided example. They do not contain a user-provided resume or real candidate information.
@@ -53,11 +59,11 @@ Candidates can paste resume text or extract text from PDF, DOCX, or TXT files. T
 | **Matching engine** | Exact Match, Curated Semantic Match, Related Skill, and Insufficient Evidence tiers. |
 | **Grounded rewriting** | LLM-assisted summary and bullet rewriting that requires evidence IDs for every claim. |
 | **Truth Guard** | Detects missing citations, untraceable metrics, and claims with weak textual overlap with their cited evidence. |
-| **ATS estimate** | Weighted breakdown for keyword alignment, skill coverage, experience evidence, responsibilities, formatting, technical skills, and education. |
+| **ATS review** | Weighted source-resume estimate plus an AI-assisted generated-resume-versus-job review with direct matches, related evidence, gaps, and evidence-based next checks. |
 | **Candidate controls** | Target title/company, tone, seniority, template, page length, keyword emphasis, and section preferences. |
 | **Quality gate** | Contact details, conventional sections, dates, standard headings, keyword density, professional tone, evidence status, and ATS-safe formatting. |
 | **Export** | Text, PDF, and DOCX artifact preparation after a fresh quality-gate recheck. |
-| **Persistence** | Authenticated storage for master resumes and independently saved tailored versions. |
+| **Persistence and tracking** | Authenticated storage for master resumes and independently saved tailored versions, with application platform, submission date, notes, and stage tracking. |
 
 ## Architecture
 
@@ -117,7 +123,7 @@ pnpm drizzle-kit generate
 | --- | --- |
 | `users` | Authenticated user records. |
 | `masterResumes` | Original source resumes, retained separately from tailored outputs. |
-| `tailoredResumeVersions` | Job-specific tailored resume text, settings, analysis result, quality-gate state, and target-job context. |
+| `tailoredResumeVersions` | Job-specific tailored resume text, settings, analysis result, quality-gate state, target-job context, and application-tracking metadata. |
 
 ## Responsible AI guardrails
 

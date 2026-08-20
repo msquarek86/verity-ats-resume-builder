@@ -1,4 +1,5 @@
 import { startLogin } from "@/const";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Check, ChevronRight, Download, FileText, FolderHeart, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, Upload, WandSparkles } from "lucide-react";
 import mammoth from "mammoth";
@@ -60,6 +61,8 @@ Preferred qualifications
 • Experience working in an Agile environment.`;
 
 const readableTier: Record<string, string> = { exact: "Exact", semantic: "Semantic", related: "Related", insufficient: "Gap" };
+type ApplicationStatus = "draft" | "ready" | "applied" | "screening" | "interview" | "offer" | "rejected" | "withdrawn";
+const applicationStatuses: Array<{ value: ApplicationStatus; label: string }> = [{ value: "draft", label: "Draft" }, { value: "ready", label: "Ready to apply" }, { value: "applied", label: "Applied" }, { value: "screening", label: "Screening" }, { value: "interview", label: "Interview" }, { value: "offer", label: "Offer" }, { value: "rejected", label: "Not selected" }, { value: "withdrawn", label: "Withdrawn" }];
 
 function words(value: string) { return value.trim() ? value.trim().split(/\s+/).length : 0; }
 function formatTier(value: string) { return `badge-${value}`; }
@@ -93,9 +96,12 @@ export default function Home() {
   const [masterId, setMasterId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState("intake");
   const [preparedExport, setPreparedExport] = useState<{ url: string; fileName: string; label: string } | null>(null);
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const analysis = trpc.resume.analyze.useMutation();
   const saveMaster = trpc.resume.saveMaster.useMutation();
   const saveVersion = trpc.resume.saveVersion.useMutation();
+  const versions = trpc.resume.listVersions.useQuery(undefined, { enabled: isAuthenticated });
+  const updateApplication = trpc.resume.updateApplication.useMutation();
 
   const result = analysis.data;
   const stage = result ? "review" : activeView;
@@ -156,13 +162,25 @@ export default function Home() {
     if (!result) return;
     if (!masterId) { await saveAsMaster(); return; }
     try {
-      await saveVersion.mutateAsync({ masterResumeId: masterId, label: `${settings.targetRole || result.job.title} — Tailored`, targetRole: settings.targetRole || result.job.title, targetCompany: settings.targetCompany || result.job.company, jobDescription, settings: result.settings, analysis: result, qualityGate: result.qualityGate, resumeText: result.optimizedText });
+      await saveVersion.mutateAsync({ masterResumeId: masterId, label: `${settings.targetRole || result.job.title} — Tailored`, targetRole: settings.targetRole || result.job.title, targetCompany: settings.targetCompany || result.job.company, jobDescription, settings: result.settings, analysis: result, qualityGate: result.qualityGate, resumeText: result.optimizedText, applicationStatus: "ready" });
+      await versions.refetch();
       setMessage("Tailored version saved. Your master resume remains unchanged.");
     } catch {
       setMessage("Sign in to save this tailored version.");
     }
   };
 
+  const updateApplicationStatus = async (id: number, input: { applicationStatus?: ApplicationStatus; applicationPlatform?: string | null; applicationUrl?: string | null; appliedAt?: number | null; applicationNotes?: string | null }) => {
+    const version = versions.data?.find(item => item.id === id);
+    if (!version) return;
+    try {
+      await updateApplication.mutateAsync({ id, applicationStatus: input.applicationStatus ?? version.applicationStatus, applicationPlatform: input.applicationPlatform ?? version.applicationPlatform, applicationUrl: input.applicationUrl ?? version.applicationUrl, appliedAt: input.appliedAt === undefined ? (version.appliedAt ? new Date(version.appliedAt).getTime() : null) : input.appliedAt, applicationNotes: input.applicationNotes ?? version.applicationNotes });
+      await versions.refetch();
+      setMessage("Application tracker updated.");
+    } catch {
+      setMessage("We could not update this application tracker entry.");
+    }
+  };
   const recheckBeforeExport = async () => {
     const latest = await analysis.mutateAsync({ resumeText, jobDescription, settings: { ...settings, strictTruthMode: true } });
     if (!latest.qualityGate.ready) {
@@ -293,6 +311,13 @@ export default function Home() {
           </aside>
         </div>
 
+        <section className="panel tracker-panel" id="versions">
+          <header className="panel-header"><div><p className="panel-kicker">Application tracker</p><h2 className="panel-title">Keep each tailored version in context.</h2><p className="panel-subtitle">Save a tailored resume, record where it was used, and follow the application status without changing your master resume.</p></div><FolderHeart size={19} color="#1f5d48" /></header>
+          <div className="panel-body">
+            {authLoading ? <p className="tracker-message">Loading your saved versions…</p> : !isAuthenticated ? <div className="tracker-empty"><strong>Sign in to save versions and track applications.</strong><p>Your master resume stays separate while each job-specific version gets its own status history.</p><button className="secondary-button" onClick={startLogin}>Sign in to enable tracking</button></div> : versions.isLoading ? <p className="tracker-message">Loading your saved versions…</p> : !versions.data?.length ? <div className="tracker-empty"><strong>No tailored versions saved yet.</strong><p>Analyze a role, then select <em>Save master first</em> and save the tailored version to start tracking applications.</p></div> : <div className="application-list">{versions.data.map(version => <article className="application-card" key={version.id}><div className="application-heading"><div><strong>{version.label}</strong><p>{version.targetCompany || "Target company not specified"} · {version.targetRole}</p></div><select className="status-select" value={version.applicationStatus} disabled={updateApplication.isPending} onChange={event => void updateApplicationStatus(version.id, { applicationStatus: event.target.value as ApplicationStatus })}>{applicationStatuses.map(status => <option value={status.value} key={status.value}>{status.label}</option>)}</select></div><div className="application-fields"><label><span>Platform</span><input defaultValue={version.applicationPlatform || ""} placeholder="e.g., Workday, LinkedIn" onBlur={event => void updateApplicationStatus(version.id, { applicationPlatform: event.currentTarget.value || null })} /></label><label><span>Applied on</span><input type="date" defaultValue={version.appliedAt ? new Date(version.appliedAt).toISOString().slice(0, 10) : ""} onChange={event => void updateApplicationStatus(version.id, { appliedAt: event.currentTarget.value ? new Date(`${event.currentTarget.value}T12:00:00Z`).getTime() : null })} /></label><label className="application-notes"><span>Notes</span><input defaultValue={version.applicationNotes || ""} placeholder="e.g., Referral submitted; follow up next week" onBlur={event => void updateApplicationStatus(version.id, { applicationNotes: event.currentTarget.value || null })} /></label></div></article>)}</div>}
+          </div>
+        </section>
+
         {!result && !analysis.isPending && <section className="panel" style={{ marginTop: 24 }}><div className="empty-state"><div className="empty-orb"><Sparkles size={20} /></div><h3>Your evidence map will appear here.</h3><p>We will identify supported experience, distinguish adjacent skills from true matches, and surface gaps without overstating your qualifications.</p></div></section>}
         {analysis.isPending && <section className="panel results"><div className="loading-screen"><div className="loading-ring" /><h3>Building an evidence map…</h3><p>We are extracting source facts, reading the role, and checking every proposed claim against your resume.</p></div></section>}
 
@@ -301,6 +326,8 @@ export default function Home() {
             <div className="score-hero"><div><p className="panel-kicker">Estimated compatibility</p><div className="score-figure">{result.score.score}<span>/100</span></div><p className="score-label">{result.score.label}</p></div><p className="score-footnote">An internal optimization estimate—never a guarantee of any employer’s ATS outcome.</p></div>
             <div className="score-content"><h3>What the score actually means.</h3><p>{stats?.exact ?? 0} direct match{stats?.exact === 1 ? "" : "es"} and {stats?.gaps ?? 0} evidence gap{stats?.gaps === 1 ? "" : "s"} were found against the analyzed requirements.</p><div className="score-breakdown">{result.score.breakdown.map(item => <div className="score-row" key={item.key}><label>{item.label}</label><strong>{item.score}%</strong><div className="progress-bar"><span style={{ width: `${item.score}%` }} /></div></div>)}</div></div>
           </section>
+
+          <section className="panel ats-review-panel"><header className="panel-header"><div><p className="panel-kicker">AI-assisted ATS review</p><h2 className="panel-title">Inspect the generated resume against this exact job.</h2><p className="panel-subtitle">The review reads the tailored output against the pasted job description while retaining the evidence and truth constraints used to create it.</p></div><span className="tier-badge badge-semantic">Generated review</span></header><div className="panel-body"><div className="ats-review-top"><div className="ats-review-score"><strong>{result.atsReview.score}<small>/100</small></strong><span>{result.atsReview.label}</span></div><div><p className="ats-review-summary">{result.atsReview.summary}</p><p className="ats-review-caution">{result.atsReview.caution}</p></div></div><div className="ats-review-grid"><div className="ats-review-column"><h3>Supported in the generated resume</h3>{result.atsReview.directMatches.length ? result.atsReview.directMatches.map(item => <span className="review-chip good" key={item}>{item}</span>) : <p>No direct evidence was identified.</p>}</div><div className="ats-review-column"><h3>Related, not equivalent</h3>{result.atsReview.relatedRequirements.length ? result.atsReview.relatedRequirements.map(item => <span className="review-chip related" key={item}>{item}</span>) : <p>No related-only evidence was identified.</p>}</div><div className="ats-review-column"><h3>Evidence gaps</h3>{result.atsReview.gaps.length ? result.atsReview.gaps.map(item => <span className="review-chip gap" key={item}>{item}</span>) : <p>No prioritized gaps were identified.</p>}</div></div><div className="ats-recommendations"><h3>Recommended next checks</h3>{result.atsReview.recommendations.map(item => <p key={item}>{item}</p>)}</div></div></section>
 
           <div className="match-grid" id="intelligence">
             <section className="panel"><header className="panel-header"><div><p className="panel-kicker">02 / Match intelligence</p><h2 className="panel-title">Evidence, not equivalence.</h2><p className="panel-subtitle">Each target requirement is graded by what your original resume actually supports.</p></div></header><div className="panel-body"><div className="match-list">{result.matches.map(match => <div className="match-row" key={match.requirementId}><span className={`tier-dot tier-${match.tier}`} /><div><div className="match-name">{match.requirement}</div><div className="match-evidence">{match.evidence[0]?.quote || match.explanation}</div></div><span className={`tier-badge ${formatTier(match.tier)}`}>{readableTier[match.tier]}</span></div>)}</div><div className="legend"><span className="legend-item"><i className="tier-dot tier-exact" />Exact evidence</span><span className="legend-item"><i className="tier-dot tier-semantic" />Curated semantic</span><span className="legend-item"><i className="tier-dot tier-related" />Related, not equivalent</span><span className="legend-item"><i className="tier-dot tier-insufficient" />Insufficient evidence</span></div></div></section>

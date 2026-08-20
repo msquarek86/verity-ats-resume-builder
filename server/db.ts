@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, masterResumes, MasterResume, tailoredResumeVersions, TailoredResumeVersion, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -53,7 +53,7 @@ export async function listMasterResumes(userId: number): Promise<MasterResume[]>
   return db.select().from(masterResumes).where(eq(masterResumes.userId, userId)).orderBy(desc(masterResumes.updatedAt));
 }
 
-export async function createTailoredVersion(input: { userId: number; masterResumeId: number; label: string; targetRole: string; targetCompany?: string; jobDescription: string; settings: unknown; analysis: unknown; qualityGate: unknown; resumeText: string }) {
+export async function createTailoredVersion(input: { userId: number; masterResumeId: number; label: string; targetRole: string; targetCompany?: string; jobDescription: string; settings: unknown; analysis: unknown; qualityGate: unknown; resumeText: string; applicationStatus?: TailoredResumeVersion["applicationStatus"]; applicationPlatform?: string; applicationUrl?: string; appliedAt?: Date; applicationNotes?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database is unavailable");
   const result = await db.insert(tailoredResumeVersions).values(input);
@@ -64,4 +64,20 @@ export async function listTailoredVersions(userId: number): Promise<TailoredResu
   const db = await getDb();
   if (!db) return [];
   return db.select().from(tailoredResumeVersions).where(eq(tailoredResumeVersions.userId, userId)).orderBy(desc(tailoredResumeVersions.updatedAt));
+}
+
+export async function updateTailoredVersionApplication(input: { userId: number; versionId: number; applicationStatus: TailoredResumeVersion["applicationStatus"]; applicationPlatform?: string | null; applicationUrl?: string | null; appliedAt?: Date | null; applicationNotes?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is unavailable");
+  await db.update(tailoredResumeVersions).set({
+    applicationStatus: input.applicationStatus,
+    applicationPlatform: input.applicationPlatform ?? null,
+    applicationUrl: input.applicationUrl ?? null,
+    appliedAt: input.appliedAt ?? null,
+    applicationNotes: input.applicationNotes ?? null,
+    lastStatusAt: new Date(),
+  }).where(and(eq(tailoredResumeVersions.id, input.versionId), eq(tailoredResumeVersions.userId, input.userId)));
+  const result = await db.select().from(tailoredResumeVersions).where(and(eq(tailoredResumeVersions.id, input.versionId), eq(tailoredResumeVersions.userId, input.userId))).limit(1);
+  if (!result[0]) throw new Error("Tailored version not found");
+  return result[0];
 }

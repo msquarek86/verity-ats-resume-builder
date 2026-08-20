@@ -1,5 +1,5 @@
 import { invokeLLM, listLLMModels } from "./_core/llm";
-import { calculateAtsScore, createRequirementMatches, defaultSettings, formatTailoredResume, parseJobDescriptionDeterministically, parseResumeDeterministically, runQualityGate, type Claim, type OptimizationSettings, type ParsedJobDescription, type ParsedResume, type ResumeExperience } from "./resumeEngine";
+import { analyzeGeneratedResumeForAts, calculateAtsScore, createRequirementMatches, defaultSettings, formatTailoredResume, parseJobDescriptionDeterministically, parseResumeDeterministically, runQualityGate, type Claim, type GeneratedResumeAtsReview, type OptimizationSettings, type ParsedJobDescription, type ParsedResume, type ResumeExperience } from "./resumeEngine";
 
 type AiParsedDocument = {
   resume: {
@@ -25,6 +25,8 @@ type AiDraft = {
   summary: { text: string; evidenceIds: string[] };
   bullets: Array<{ experienceId: string; text: string; evidenceIds: string[] }>;
 };
+
+type AiAtsNarrative = { summary: string; recommendations: string[]; caution: string };
 
 const documentSchema = {
   type: "object",
@@ -61,6 +63,17 @@ const draftSchema = {
     bullets: { type: "array", items: { type: "object", properties: { experienceId: { type: "string" }, text: { type: "string" }, evidenceIds: { type: "array", items: { type: "string" } } }, required: ["experienceId", "text", "evidenceIds"], additionalProperties: false } },
   },
   required: ["summary", "bullets"],
+  additionalProperties: false,
+} as const;
+
+const atsNarrativeSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    recommendations: { type: "array", items: { type: "string" } },
+    caution: { type: "string" },
+  },
+  required: ["summary", "recommendations", "caution"],
   additionalProperties: false,
 } as const;
 
@@ -142,6 +155,28 @@ async function createGroundedDraft(resume: ParsedResume, job: ParsedJobDescripti
   }
 }
 
+async function createGeneratedAtsNarrative(review: GeneratedResumeAtsReview, job: ParsedJobDescription): Promise<GeneratedResumeAtsReview> {
+  try {
+    const model = await pickModel();
+    if (!model) return review;
+    const response = await invokeLLM({
+      model,
+      maxTokens: 1600,
+      messages: [
+        { role: "system", content: "You are an evidence-first ATS optimization reviewer. Explain only the supplied generated-resume versus job-description review. Never invent missing experience, skills, metrics, or qualifications. Do not claim that an employer ATS will accept or reject the candidate. Keep all recommendations short and frame gaps as evidence the candidate may add only if genuine." },
+        { role: "user", content: JSON.stringify({ jobTitle: job.title, requirements: job.requirements.map(item => item.name), deterministicReview: review }) },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "generated_resume_ats_narrative", strict: true, schema: atsNarrativeSchema } },
+    });
+    const content = response.choices[0]?.message.content;
+    const narrative = typeof content === "string" ? JSON.parse(content) as AiAtsNarrative : null;
+    return narrative ? { ...review, summary: asString(narrative.summary) || review.summary, recommendations: asStringList(narrative.recommendations).slice(0, 5).length ? asStringList(narrative.recommendations).slice(0, 5) : review.recommendations, caution: asString(narrative.caution) || review.caution } : review;
+  } catch (error) {
+    console.warn("[Resume AI] Generated ATS narrative fell back to deterministic review", error);
+    return review;
+  }
+}
+
 export async function analyzeResumeForJob(input: { resumeText: string; jobDescription: string; settings?: Partial<OptimizationSettings> }) {
   const settings = { ...defaultSettings(), ...input.settings, strictTruthMode: true };
   const documents = await extractStructuredDocuments(input.resumeText, input.jobDescription, settings);
@@ -154,5 +189,6 @@ export async function analyzeResumeForJob(input: { resumeText: string; jobDescri
   ];
   const optimizedText = formatTailoredResume(documents.resume, draft.summary.text, draft.bullets, settings);
   const qualityGate = runQualityGate(documents.resume, optimizedText, claims);
-  return { settings, resume: documents.resume, job: documents.job, matches, score, draft, claims, optimizedText, qualityGate };
+  const atsReview = await createGeneratedAtsNarrative(analyzeGeneratedResumeForAts(optimizedText, documents.job), documents.job);
+  return { settings, resume: documents.resume, job: documents.job, matches, score, draft, claims, optimizedText, qualityGate, atsReview };
 }

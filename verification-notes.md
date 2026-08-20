@@ -53,3 +53,9 @@ After the direct invocation and extended validation interval, the page rendered 
 Browser download history confirmed retrieval of `tailored-resume.pdf`. The quality-gated PDF export flow is therefore verified end to end using the synthetic guided example.
 
 Two recruiter-facing screenshots were reviewed before publication. The first uses only the synthetic guided example and shows source intake plus tailoring controls. The second shows only synthetic claim provenance and the passing quality gate with export actions. Neither image contains user-provided resume content.
+
+The updated workspace was opened in the browser and confirmed to present the application tracker independently of the core intake. The synthetic guided example was then loaded for validating the new generated-resume ATS review without using any personal resume content.
+
+The guided analysis request was started successfully. The new review includes an additional structured ATS narrative pass, so the browser remained in its transparent analysis state after the initial wait; further time is being allowed before evaluating the completed output.
+
+After the extended wait, the generated-resume ATS review completed successfully. It showed a 52/100 job-specific optimization review, explicitly separated direct matches, related-but-not-equivalent evidence, and gaps, and retained the no-guarantee caution. The review used only the synthetic guided example.

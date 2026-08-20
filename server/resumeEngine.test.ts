@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateAtsScore, createRequirementMatches, parseJobDescriptionDeterministically, parseResumeDeterministically, runQualityGate, validateClaims } from "./resumeEngine";
+import { analyzeGeneratedResumeForAts, calculateAtsScore, createRequirementMatches, parseJobDescriptionDeterministically, parseResumeDeterministically, runQualityGate, validateClaims } from "./resumeEngine";
 
 const resumeText = `Avery Morgan\navery@example.com | 555-0100\n\nPROFESSIONAL SUMMARY\nData analyst with experience building Tableau dashboards and SQL reporting.\n\nEXPERIENCE\nData Analyst | Northstar\n• Built recurring Tableau dashboards for revenue reporting.\n• Wrote SQL queries to analyze customer performance.\n\nSKILLS\nSQL, Tableau, Python, Stakeholder communication\n\nEDUCATION\nB.S. Information Systems`;
 
@@ -33,5 +33,15 @@ describe("evidence-first ATS engine", () => {
     expect(score.breakdown).toHaveLength(7);
     expect(score.score).toBeGreaterThan(0);
     expect(gate.ready).toBe(true);
+  });
+
+  it("reviews the generated resume against the target job without converting gaps into qualifications", () => {
+    const job = parseJobDescriptionDeterministically(jdText);
+    const review = analyzeGeneratedResumeForAts(resumeText, job);
+
+    expect(review.directMatches).toContain("SQL");
+    expect(review.relatedRequirements).toContain("Data Visualization");
+    expect(review.gaps).not.toContain("SQL");
+    expect(review.caution).toContain("not an employer ATS score");
   });
 });

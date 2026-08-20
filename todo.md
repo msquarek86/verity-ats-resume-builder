@@ -30,3 +30,8 @@
 - [x] Implement a clearly surfaced, quality-gated PDF export flow for tailored resumes.
 - [x] Capture sanitized product screenshots and add them to the recruiter-facing README.
 - [x] Change the verity-ats-resume-builder GitHub repository visibility to public and verify its public presentation.
+- [x] Add saved tailored-resume version management with application status, platform, date, and tracker views.
+- [x] Extend job-specific ATS analysis with targeted strengths, gaps, and evidence-based recommendations.
+- [x] Create a sanitized 60–90 second Verity walkthrough video and embed it in the public GitHub README.
+- [ ] Commit and push the walkthrough-video README update to the public GitHub repository, then verify the poster and video link.
+- [ ] Test, publish, and synchronize the version tracking, ATS analysis, and walkthrough update.

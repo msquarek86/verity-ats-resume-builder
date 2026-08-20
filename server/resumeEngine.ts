@@ -68,6 +68,17 @@ export type AtsScore = {
   nextSteps: string[];
 };
 
+export type GeneratedResumeAtsReview = {
+  score: number;
+  label: string;
+  directMatches: string[];
+  relatedRequirements: string[];
+  gaps: string[];
+  recommendations: string[];
+  summary: string;
+  caution: string;
+};
+
 export type Claim = { text: string; evidenceIds: string[]; section: string };
 export type TruthGuardIssue = { severity: "error" | "warning"; message: string; claim: string };
 export type QualityGate = {
@@ -303,6 +314,31 @@ export function calculateAtsScore(resume: ParsedResume, job: ParsedJobDescriptio
     improvedBy: exact.slice(0, 4).map(item => `${titleCase(item)} is directly supported by the source resume.`),
     loweredBy: gaps.slice(0, 4).map(item => `${titleCase(item)} is required or emphasized in the job description but is not evidenced in the source resume.`),
     nextSteps: [...gaps.slice(0, 3).map(item => `Add evidence for ${titleCase(item)} only if you genuinely have that experience.`), ...related.slice(0, 2).map(item => `Clarify whether your related experience demonstrates ${titleCase(item)}; do not claim equivalence without evidence.`)],
+  };
+}
+
+export function analyzeGeneratedResumeForAts(optimizedText: string, job: ParsedJobDescription): GeneratedResumeAtsReview {
+  const generatedResume = parseResumeDeterministically(optimizedText);
+  const matches = createRequirementMatches(generatedResume, job);
+  const alignment = weightedAverage(matches.map(match => ({ score: TIER_SCORE[match.tier], weight: PRIORITY_WEIGHT[match.priority] })));
+  const hasConventionalHeadings = ["EXPERIENCE", "SKILLS", "EDUCATION"].filter(heading => optimizedText.includes(heading)).length / 3;
+  const score = Math.round((alignment * 0.78 + hasConventionalHeadings * 0.22) * 100);
+  const directMatches = matches.filter(match => match.tier === "exact" || match.tier === "semantic").map(match => match.requirement);
+  const relatedRequirements = matches.filter(match => match.tier === "related").map(match => match.requirement);
+  const gaps = matches.filter(match => match.tier === "insufficient").map(match => match.requirement);
+  return {
+    score,
+    label: score >= 80 ? "Strong generated alignment" : score >= 60 ? "Developing generated alignment" : "Needs targeted evidence",
+    directMatches: directMatches.slice(0, 6),
+    relatedRequirements: relatedRequirements.slice(0, 4),
+    gaps: gaps.slice(0, 5),
+    recommendations: [
+      ...gaps.slice(0, 3).map(item => `Do not add ${titleCase(item)} unless you can provide genuine source evidence.`),
+      ...relatedRequirements.slice(0, 2).map(item => `Clarify the specific evidence behind ${titleCase(item)} without claiming it is an equivalent qualification.`),
+      ...(hasConventionalHeadings < 1 ? ["Keep conventional experience, skills, and education headings in the exported version."] : []),
+    ],
+    summary: `${directMatches.length} target requirement${directMatches.length === 1 ? " is" : "s are"} represented directly or through a curated semantic match in the generated resume.`,
+    caution: "This is a job-specific optimization review, not an employer ATS score or an application outcome guarantee.",
   };
 }
 
