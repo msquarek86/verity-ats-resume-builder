@@ -63,3 +63,9 @@ After the extended wait, the generated-resume ATS review completed successfully.
 The 72-second walkthrough was rendered from sanitized frames, uploaded as a managed MP4 asset with a poster image, and added to the README. The public GitHub repository was checked after synchronization: the README displayed the poster and exposed the direct walkthrough link.
 
 The new checkpoint was published to the public Verity domain. After the initial cold-load frame, the live site rendered the refreshed workspace successfully; its page content included the application-tracker section and the new version of the client bundle.
+
+The refreshed public deployment was checked with a cache-busting release URL after deployment completion. The live page rendered the Application tracker heading, its saved-version explanation, and the sign-in-to-enable-tracking state, confirming that the published client includes the new tracker.
+
+The synthetic guided example was loaded on the refreshed public domain and the live analysis request started successfully. The final generated-resume ATS panel is being awaited before the public workflow verification is completed.
+
+The public guided analysis completed successfully. The live deployment displayed the AI-assisted generated-resume ATS review with its 52/100 job-specific estimate, direct matches, related-but-not-equivalent evidence, gaps, evidence-based recommendations, and the explicit no-guarantee caution.

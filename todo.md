@@ -37,6 +37,6 @@
 - [x] Test, publish, and synchronize the version tracking, ATS analysis, and walkthrough update.
 - [x] Save a checkpoint and refresh the live Verity deployment with the tracker, ATS-review, and walkthrough changes.
 - [x] Verify the refreshed public site reflects the application tracker and generated-resume ATS review.
-- [ ] Refresh the public Verity deployment to the checkpoint containing the tracker, ATS review, and walkthrough changes.
-- [ ] Verify the application tracker is visible on the refreshed public deployment.
-- [ ] Run the synthetic guided example on the refreshed public site and confirm the generated-resume ATS review appears.
+- [x] Refresh the public Verity deployment to the checkpoint containing the tracker, ATS review, and walkthrough changes.
+- [x] Verify the application tracker is visible on the refreshed public deployment.
+- [x] Run the synthetic guided example on the refreshed public site and confirm the generated-resume ATS review appears.
