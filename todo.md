@@ -22,3 +22,6 @@
 - [x] Research and document platform-safe resume guidance for Workday and Greenhouse uploads.
 - [x] Create a realistic step-by-step Verity career-switch tailoring example.
 - [x] Prepare concise GitHub-profile showcase guidance for the Verity project.
+- [x] Prepare repository metadata for GitHub publication as verity-ats-resume-builder.
+- [x] Confirm the user-facing GitHub export path and provide full-stack hosting guidance.
+- [ ] Change the GitHub repository visibility to public if the user explicitly confirms that choice.
