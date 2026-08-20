@@ -29,4 +29,4 @@
 - [x] Create and validate a reusable Verity full-stack build, publish, and GitHub showcase skill.
 - [x] Implement a clearly surfaced, quality-gated PDF export flow for tailored resumes.
 - [x] Capture sanitized product screenshots and add them to the recruiter-facing README.
-- [ ] Change the verity-ats-resume-builder GitHub repository visibility to public and verify its public presentation.
+- [x] Change the verity-ats-resume-builder GitHub repository visibility to public and verify its public presentation.
