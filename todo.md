@@ -19,3 +19,6 @@
 - [x] Verify responsive rendering and guided-example intake in the browser.
 - [x] Verify the live AI analysis response and exported review state in the browser.
 - [x] Prepare repository documentation and a final project checkpoint.
+- [x] Research and document platform-safe resume guidance for Workday and Greenhouse uploads.
+- [x] Create a realistic step-by-step Verity career-switch tailoring example.
+- [x] Prepare concise GitHub-profile showcase guidance for the Verity project.
