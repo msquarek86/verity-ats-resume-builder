@@ -61,3 +61,5 @@ The guided analysis request was started successfully. The new review includes an
 After the extended wait, the generated-resume ATS review completed successfully. It showed a 52/100 job-specific optimization review, explicitly separated direct matches, related-but-not-equivalent evidence, and gaps, and retained the no-guarantee caution. The review used only the synthetic guided example.
 
 The 72-second walkthrough was rendered from sanitized frames, uploaded as a managed MP4 asset with a poster image, and added to the README. The public GitHub repository was checked after synchronization: the README displayed the poster and exposed the direct walkthrough link.
+
+The new checkpoint was published to the public Verity domain. After the initial cold-load frame, the live site rendered the refreshed workspace successfully; its page content included the application-tracker section and the new version of the client bundle.

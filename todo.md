@@ -35,5 +35,8 @@
 - [x] Create a sanitized 60–90 second Verity walkthrough video and embed it in the public GitHub README.
 - [x] Commit and push the walkthrough-video README update to the public GitHub repository, then verify the poster and video link.
 - [x] Test, publish, and synchronize the version tracking, ATS analysis, and walkthrough update.
-- [ ] Save a checkpoint and refresh the live Verity deployment with the tracker, ATS-review, and walkthrough changes.
-- [ ] Verify the refreshed public site reflects the application tracker and generated-resume ATS review.
+- [x] Save a checkpoint and refresh the live Verity deployment with the tracker, ATS-review, and walkthrough changes.
+- [x] Verify the refreshed public site reflects the application tracker and generated-resume ATS review.
+- [ ] Refresh the public Verity deployment to the checkpoint containing the tracker, ATS review, and walkthrough changes.
+- [ ] Verify the application tracker is visible on the refreshed public deployment.
+- [ ] Run the synthetic guided example on the refreshed public site and confirm the generated-resume ATS review appears.
