@@ -33,5 +33,7 @@
 - [x] Add saved tailored-resume version management with application status, platform, date, and tracker views.
 - [x] Extend job-specific ATS analysis with targeted strengths, gaps, and evidence-based recommendations.
 - [x] Create a sanitized 60–90 second Verity walkthrough video and embed it in the public GitHub README.
-- [ ] Commit and push the walkthrough-video README update to the public GitHub repository, then verify the poster and video link.
-- [ ] Test, publish, and synchronize the version tracking, ATS analysis, and walkthrough update.
+- [x] Commit and push the walkthrough-video README update to the public GitHub repository, then verify the poster and video link.
+- [x] Test, publish, and synchronize the version tracking, ATS analysis, and walkthrough update.
+- [ ] Save a checkpoint and refresh the live Verity deployment with the tracker, ATS-review, and walkthrough changes.
+- [ ] Verify the refreshed public site reflects the application tracker and generated-resume ATS review.

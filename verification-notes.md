@@ -59,3 +59,5 @@ The updated workspace was opened in the browser and confirmed to present the app
 The guided analysis request was started successfully. The new review includes an additional structured ATS narrative pass, so the browser remained in its transparent analysis state after the initial wait; further time is being allowed before evaluating the completed output.
 
 After the extended wait, the generated-resume ATS review completed successfully. It showed a 52/100 job-specific optimization review, explicitly separated direct matches, related-but-not-equivalent evidence, and gaps, and retained the no-guarantee caution. The review used only the synthetic guided example.
+
+The 72-second walkthrough was rendered from sanitized frames, uploaded as a managed MP4 asset with a poster image, and added to the README. The public GitHub repository was checked after synchronization: the README displayed the poster and exposed the direct walkthrough link.
