@@ -137,10 +137,6 @@ function lines(text: string) {
   return text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
 }
 
-function titleCase(value: string) {
-  return value.split(" ").map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
-}
-
 export function defaultSettings(): OptimizationSettings {
   return {
     targetRole: "",
@@ -204,34 +200,79 @@ function inferPriority(text: string): Priority {
 
 function extractSkillCandidates(text: string) {
   const knownTerms = [
-    "AWS", "Azure", "GCP", "Python", "SQL", "JavaScript", "TypeScript", "React", "Node.js", "Docker", "Kubernetes", "Tableau", "Power BI", "Salesforce", "CRM", "Figma", "Excel", "Git", "CI/CD", "Scrum", "Kanban", "Jira", "Stakeholder Management", "Data Visualization", "Machine Learning", "Product Management", "Project Management", "Agile", "REST APIs", "GraphQL",
+    "AWS", "Azure", "GCP", "Python", "SQL", "R", "JavaScript", "TypeScript", "React", "Node.js", "Docker", "Kubernetes", "Tableau", "Power BI", "Looker", "Salesforce", "CRM", "Figma", "Excel", "Git", "CI/CD", "Scrum", "Kanban", "Jira", "Stakeholder Management", "Data Visualization", "Machine Learning", "Product Management", "Project Management", "Agile", "REST APIs", "GraphQL", "Google Analytics", "Snowflake", "BigQuery",
   ];
   const corpus = normalize(text);
-  return knownTerms.filter(term => corpus.includes(normalize(term)));
+  return knownTerms.filter(term => {
+    const normalizedTerm = normalize(term);
+    return normalizedTerm.length === 1 ? new RegExp(`\\b${normalizedTerm}\\b`).test(corpus) : corpus.includes(normalizedTerm);
+  });
+}
+
+function isJobSectionLabel(value: string) {
+  const normalized = normalize(value).replace(/:$/, "");
+  return ["required qualifications", "requirements", "minimum qualifications", "preferred qualifications", "preferred skills", "nice to have", "responsibilities", "what you will do", "about the role", "qualifications", "benefits", "about you"].includes(normalized);
+}
+
+function cleanJobLine(value: string) {
+  return value.replace(/^(?:[-•*]\s+|\d+[.)]\s+)/, "").replace(/\s+/g, " ").trim();
+}
+
+function isUsefulJobLine(value: string) {
+  const clean = cleanJobLine(value);
+  const count = clean.split(/\s+/).filter(Boolean).length;
+  return count >= 2 && count <= 45 && !isJobSectionLabel(clean);
 }
 
 export function parseJobDescriptionDeterministically(sourceText: string, role = "", company = ""): ParsedJobDescription {
   const sourceLines = lines(sourceText);
-  const required = sourceLines.filter(line => /\b(must|required|minimum|essential|qualified)\b/i.test(line));
-  const preferred = sourceLines.filter(line => /\b(preferred|nice to have|bonus|plus)\b/i.test(line));
-  const responsibilities = sourceLines.filter(line => /\b(you will|responsibilit|manage|develop|lead|collaborate|deliver|own|design)\b/i.test(line));
-  const qualifications = sourceLines.filter(line => /\b(degree|certification|years of|bachelor|master)\b/i.test(line));
+  const required: string[] = [];
+  const preferred: string[] = [];
+  const responsibilities: string[] = [];
+  const qualifications: string[] = [];
+  let section: "required" | "preferred" | "responsibility" | "other" = "other";
+  sourceLines.forEach(rawLine => {
+    const normalized = normalize(rawLine);
+    if (isJobSectionLabel(rawLine)) {
+      section = /preferred|nice to have|bonus|plus/.test(normalized) ? "preferred" : /responsib|what you will/.test(normalized) ? "responsibility" : /required|minimum|qualification|requirement/.test(normalized) ? "required" : "other";
+      return;
+    }
+    const line = cleanJobLine(rawLine);
+    if (!isUsefulJobLine(line)) return;
+    const hasRequiredSignal = /\b(must|required|minimum|essential|mandatory)\b/i.test(line);
+    const hasPreferredSignal = /\b(preferred|nice to have|bonus|plus)\b/i.test(line);
+    const hasResponsibilitySignal = /\b(you will|responsibilit|manage|develop|lead|collaborate|deliver|own|design|build|analyze)\b/i.test(line);
+    const hasQualificationSignal = /\b(degree|certification|years of|bachelor|master|experience)\b/i.test(line);
+    if (section === "required" || hasRequiredSignal) required.push(line);
+    else if (section === "preferred" || hasPreferredSignal) preferred.push(line);
+    else if (section === "responsibility" || hasResponsibilitySignal) responsibilities.push(line);
+    if (hasQualificationSignal) qualifications.push(line);
+  });
   const knownSkills = extractSkillCandidates(sourceText);
-  const requirements = unique([...knownSkills, ...required.slice(0, 5), ...preferred.slice(0, 3)]).slice(0, 18).map((name, index) => ({
+  const requiredSkills = unique(extractSkillCandidates(required.join(" ")));
+  const preferredSkills = unique(extractSkillCandidates(preferred.join(" ")));
+  const requirementNames = unique([
+    ...requiredSkills,
+    ...knownSkills.filter(skill => !preferredSkills.some(preferredSkill => normalize(preferredSkill) === normalize(skill))),
+    ...required.slice(0, 6),
+    ...preferredSkills,
+    ...preferred.slice(0, 3),
+  ]).filter(name => !isJobSectionLabel(name));
+  const requirements = requirementNames.slice(0, 18).map((name, index) => ({
     id: `req-${index + 1}`,
     name,
-    priority: inferPriority(name),
-    category: knownSkills.includes(name) ? "skill" as const : "responsibility" as const,
+    priority: requiredSkills.some(skill => normalize(skill) === normalize(name)) || required.some(line => normalize(line) === normalize(name)) ? "critical" : preferredSkills.some(skill => normalize(skill) === normalize(name)) || preferred.some(line => normalize(line) === normalize(name)) ? "medium" : inferPriority(name),
+    category: knownSkills.some(skill => normalize(skill) === normalize(name)) ? "skill" as const : /\b(degree|certification|years|bachelor|master)\b/i.test(name) ? "qualification" as const : "responsibility" as const,
     sourcePhrase: name,
   }));
   return {
     title: role || sourceLines.find(line => /\b(engineer|analyst|manager|designer|developer|director|specialist)\b/i.test(line)) || "Target role",
     company,
     seniority: /senior|lead|principal|director/i.test(sourceText) ? "Senior" : /junior|entry|graduate/i.test(sourceText) ? "Entry" : "Mid-level",
-    requiredSkills: unique([...extractSkillCandidates(required.join(" ")), ...knownSkills.slice(0, 8)]),
-    preferredSkills: unique(extractSkillCandidates(preferred.join(" "))),
-    responsibilities: responsibilities.slice(0, 8),
-    qualifications: qualifications.slice(0, 6),
+    requiredSkills: unique([...requiredSkills, ...knownSkills.filter(skill => !preferredSkills.some(preferredSkill => normalize(preferredSkill) === normalize(skill))).slice(0, 10)]),
+    preferredSkills,
+    responsibilities: unique(responsibilities).slice(0, 8),
+    qualifications: unique(qualifications).slice(0, 6),
     keywords: knownSkills,
     requirements,
     sourceText,
@@ -260,15 +301,55 @@ function findEvidence(corpusEvidence: EvidenceRef[], terms: string[]) {
   return corpusEvidence.filter(item => terms.some(term => containsPhrase(item.quote, term))).slice(0, 3);
 }
 
+const numberWords: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+};
+
+function experienceYears(value: string) {
+  return Array.from(value.toLowerCase().matchAll(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen)\+?\s+years?\b/g))
+    .map(match => Number(match[1]) || numberWords[match[1]!] || 0)
+    .filter(Boolean);
+}
+
+function findExperienceYearEvidence(corpusEvidence: EvidenceRef[], requirement: string) {
+  const requiredYears = experienceYears(requirement)[0];
+  if (!requiredYears || !/\byears?\b/i.test(requirement)) return [];
+  return corpusEvidence.filter(item => experienceYears(item.quote).some(years => years >= requiredYears)).slice(0, 3);
+}
+
 export function createRequirementMatches(resume: ParsedResume, job: ParsedJobDescription): RequirementMatch[] {
   const evidence = resumeEvidence(resume);
   return job.requirements.map(requirement => {
     const exactSkill = resume.skills.find(skill => normalize(skill) === normalize(requirement.name));
-    const direct = exactSkill
+    const phraseEvidence = exactSkill
       ? evidence.filter(item => item.section === "Skills" && normalize(item.quote) === normalize(exactSkill)).slice(0, 1)
       : findEvidence(evidence, [requirement.name]);
+    const yearsEvidence = phraseEvidence.length ? [] : findExperienceYearEvidence(evidence, requirement.name);
+    const direct = [...phraseEvidence, ...yearsEvidence].slice(0, 3);
     if (direct.length) {
-      return { requirementId: requirement.id, requirement: requirement.name, priority: requirement.priority, tier: "exact", confidence: 1, evidence: direct, explanation: "The requirement appears directly in the source resume." };
+      return {
+        requirementId: requirement.id,
+        requirement: requirement.name,
+        priority: requirement.priority,
+        tier: "exact",
+        confidence: 1,
+        evidence: direct,
+        explanation: yearsEvidence.length ? "The source resume documents a years-of-experience total that meets this requirement." : "The requirement appears directly in the source resume.",
+      };
     }
     const aliases = semanticAliases(requirement.name).filter(alias => normalize(alias) !== normalize(requirement.name));
     const semantic = aliases.length ? findEvidence(evidence, aliases) : [];
@@ -311,9 +392,9 @@ export function calculateAtsScore(resume: ParsedResume, job: ParsedJobDescriptio
     score,
     label: score >= 80 ? "Strong alignment" : score >= 60 ? "Developing alignment" : "Early alignment",
     breakdown,
-    improvedBy: exact.slice(0, 4).map(item => `${titleCase(item)} is directly supported by the source resume.`),
-    loweredBy: gaps.slice(0, 4).map(item => `${titleCase(item)} is required or emphasized in the job description but is not evidenced in the source resume.`),
-    nextSteps: [...gaps.slice(0, 3).map(item => `Add evidence for ${titleCase(item)} only if you genuinely have that experience.`), ...related.slice(0, 2).map(item => `Clarify whether your related experience demonstrates ${titleCase(item)}; do not claim equivalence without evidence.`)],
+    improvedBy: exact.slice(0, 4).map(item => `${item} is directly supported by the source resume.`),
+    loweredBy: gaps.slice(0, 4).map(item => `${item} is required or emphasized in the job description but is not evidenced in the source resume.`),
+    nextSteps: [...gaps.slice(0, 3).map(item => `Add evidence for ${item} only if you genuinely have that experience.`), ...related.slice(0, 2).map(item => `Clarify whether your related experience demonstrates ${item}; do not claim equivalence without evidence.`)],
   };
 }
 
@@ -333,8 +414,8 @@ export function analyzeGeneratedResumeForAts(optimizedText: string, job: ParsedJ
     relatedRequirements: relatedRequirements.slice(0, 4),
     gaps: gaps.slice(0, 5),
     recommendations: [
-      ...gaps.slice(0, 3).map(item => `Do not add ${titleCase(item)} unless you can provide genuine source evidence.`),
-      ...relatedRequirements.slice(0, 2).map(item => `Clarify the specific evidence behind ${titleCase(item)} without claiming it is an equivalent qualification.`),
+      ...gaps.slice(0, 3).map(item => `Do not add ${item} unless you can provide genuine source evidence.`),
+      ...relatedRequirements.slice(0, 2).map(item => `Clarify the specific evidence behind ${item} without claiming it is an equivalent qualification.`),
       ...(hasConventionalHeadings < 1 ? ["Keep conventional experience, skills, and education headings in the exported version."] : []),
     ],
     summary: `${directMatches.length} target requirement${directMatches.length === 1 ? " is" : "s are"} represented directly or through a curated semantic match in the generated resume.`,

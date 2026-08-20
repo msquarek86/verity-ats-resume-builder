@@ -1,12 +1,12 @@
 import { startLogin } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { Check, ChevronRight, Download, FileText, FolderHeart, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, Upload, WandSparkles } from "lucide-react";
-import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
+import { Check, ChevronRight, Download, FileCheck2, FileText, FileWarning, FolderHeart, LockKeyhole, RefreshCw, ShieldCheck, Sparkles, Upload, WandSparkles } from "lucide-react";
 import { useMemo, useState, type ChangeEvent } from "react";
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { AlignmentType, BorderStyle, Document, Packer, Paragraph, TextRun } from "docx";
 import { jsPDF } from "jspdf";
+import { extractDocumentText, type ExtractedDocument } from "@/lib/documentExtraction";
+import { buildResumeDocumentModel, isBulletLine, templateThemes, type ResumeDocumentModel, type ResumeTemplateName } from "@/lib/resumeTemplate";
 
 type Settings = {
   targetRole: string;
@@ -67,25 +67,90 @@ const applicationStatuses: Array<{ value: ApplicationStatus; label: string }> = 
 function words(value: string) { return value.trim() ? value.trim().split(/\s+/).length : 0; }
 function formatTier(value: string) { return `badge-${value}`; }
 
-async function extractDocumentText(file: File): Promise<string> {
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "txt") return file.text();
-  if (extension === "docx") {
-    const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-    return result.value;
+function renderPdfResume(model: ResumeDocumentModel) {
+  const theme = templateThemes[model.template];
+  const pdf = new jsPDF({ unit: "pt", format: "letter" });
+  const margin = 54;
+  const lineWidth = 504;
+  let y = 58;
+  const ensureSpace = (height: number) => {
+    if (y + height > 735) {
+      pdf.addPage();
+      y = 58;
+    }
+  };
+  const writeLines = (text: string, x: number, width: number, size: number, leading: number) => {
+    const wrapped = pdf.splitTextToSize(text, width) as string[];
+    ensureSpace(wrapped.length * leading + 4);
+    pdf.setFontSize(size);
+    pdf.text(wrapped, x, y);
+    y += wrapped.length * leading + 4;
+  };
+
+  pdf.setTextColor(theme.ink);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(22);
+  pdf.text(model.name, margin, y);
+  y += 22;
+  if (model.contact) {
+    pdf.setTextColor(theme.muted);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9.5);
+    pdf.text(model.contact, margin, y);
+    y += 18;
   }
-  if (extension === "pdf") {
-    const data = new Uint8Array(await file.arrayBuffer());
-    const task = pdfjsLib.getDocument({ data });
-    const pdf = await task.promise;
-    const pages = await Promise.all(Array.from({ length: pdf.numPages }, async (_, index) => {
-      const page = await pdf.getPage(index + 1);
-      const content = await page.getTextContent();
-      return content.items.map(item => "str" in item ? item.str : "").join(" ");
-    }));
-    return pages.join("\n\n");
-  }
-  throw new Error("Choose a PDF, DOCX, or TXT file.");
+  pdf.setDrawColor(theme.rule);
+  pdf.setLineWidth(0.8);
+  pdf.line(margin, y, margin + lineWidth, y);
+  y += 18;
+
+  model.sections.forEach(section => {
+    ensureSpace(32);
+    pdf.setTextColor(theme.accent);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(section.heading, margin, y);
+    y += 6;
+    pdf.setDrawColor(theme.rule);
+    pdf.setLineWidth(0.45);
+    pdf.line(margin, y, margin + lineWidth, y);
+    y += 14;
+    section.lines.forEach((line, index) => {
+      pdf.setTextColor(theme.ink);
+      const bullet = isBulletLine(line);
+      if (bullet) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.text("•", margin + 2, y);
+        writeLines(line.replace(/^[-•*]\s+/, ""), margin + 14, lineWidth - 14, 10, 13);
+      } else {
+        const isExperienceLabel = section.heading === "EXPERIENCE" && index % 2 === 0 && index + 1 < section.lines.length && !isBulletLine(section.lines[index + 1] ?? "");
+        pdf.setFont("helvetica", isExperienceLabel ? "bold" : "normal");
+        writeLines(line, margin, lineWidth, isExperienceLabel ? 10 : 9.8, 13);
+      }
+    });
+    y += 8;
+  });
+  return pdf.output("blob");
+}
+
+async function renderDocxResume(model: ResumeDocumentModel) {
+  const theme = templateThemes[model.template];
+  const color = (value: string) => value.replace("#", "");
+  const children: Paragraph[] = [
+    new Paragraph({ alignment: AlignmentType.LEFT, spacing: { after: 70 }, children: [new TextRun({ text: model.name, bold: true, size: 34, color: color(theme.ink), font: "Aptos Display" })] }),
+    ...(model.contact ? [new Paragraph({ spacing: { after: 130 }, children: [new TextRun({ text: model.contact, size: 18, color: color(theme.muted), font: "Aptos" })] })] : []),
+  ];
+  model.sections.forEach(section => {
+    children.push(new Paragraph({ border: { bottom: { color: color(theme.rule), style: BorderStyle.SINGLE, size: 7, space: 2 } }, spacing: { before: 115, after: 70 }, children: [new TextRun({ text: section.heading, bold: true, size: 19, color: color(theme.accent), font: "Aptos" })] }));
+    section.lines.forEach((line, index) => {
+      const bullet = isBulletLine(line);
+      const isExperienceLabel = section.heading === "EXPERIENCE" && index % 2 === 0 && index + 1 < section.lines.length && !isBulletLine(section.lines[index + 1] ?? "");
+      children.push(new Paragraph({ bullet: bullet ? { level: 0 } : undefined, spacing: { after: bullet ? 42 : 26 }, children: [new TextRun({ text: line.replace(/^[-•*]\s+/, ""), bold: isExperienceLabel, size: 19, color: color(theme.ink), font: "Aptos" })] }));
+    });
+  });
+  const document = new Document({ sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] });
+  return Packer.toBlob(document);
 }
 
 export default function Home() {
@@ -96,6 +161,7 @@ export default function Home() {
   const [masterId, setMasterId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState("intake");
   const [preparedExport, setPreparedExport] = useState<{ url: string; fileName: string; label: string } | null>(null);
+  const [uploadedDocuments, setUploadedDocuments] = useState<{ resume?: ExtractedDocument; job?: ExtractedDocument }>({});
   const { isAuthenticated, loading: authLoading } = useAuth();
   const analysis = trpc.resume.analyze.useMutation();
   const saveMaster = trpc.resume.saveMaster.useMutation();
@@ -109,6 +175,10 @@ export default function Home() {
     exact: result.matches.filter(match => match.tier === "exact").length,
     gaps: result.matches.filter(match => match.tier === "insufficient").length,
   } : null, [result]);
+  const templateModel = useMemo(() => result ? buildResumeDocumentModel(result.resume, result.optimizedText, result.settings.template as ResumeTemplateName) : null, [result]);
+  const matchForKeyword = (keyword: string) => result?.matches.find(match => match.requirement.toLowerCase() === keyword.toLowerCase());
+  const requiredKeywordTerms = result ? result.job.requirements.filter(item => item.category === "skill" && item.priority !== "medium").map(item => item.name) : [];
+  const preferredKeywordTerms = result ? result.job.requirements.filter(item => item.category === "skill" && item.priority === "medium").map(item => item.name) : [];
 
   const changeSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => setSettings(previous => ({ ...previous, [key]: value }));
 
@@ -125,11 +195,11 @@ export default function Home() {
     if (!file) return;
     try {
       setMessage("Reading your document…");
-      const text = await extractDocumentText(file);
-      if (!text.trim()) throw new Error("No readable text was found in that document.");
-      if (target === "resume") setResumeText(text);
-      else setJobDescription(text);
-      setMessage(`${file.name} is ready for analysis.`);
+      const extracted = await extractDocumentText(file);
+      if (target === "resume") setResumeText(extracted.text);
+      else setJobDescription(extracted.text);
+      setUploadedDocuments(previous => ({ ...previous, [target]: extracted }));
+      setMessage(`${extracted.fileName} was extracted. Review the preview before analysis${extracted.warning ? " — limited text may need correction." : "."}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "We could not read that document.");
     } finally {
@@ -207,27 +277,18 @@ export default function Home() {
     try {
       const latest = await recheckBeforeExport();
       if (!latest) return;
-    const pdf = new jsPDF({ unit: "pt", format: "letter" });
-    const margin = 52;
-    const lines = pdf.splitTextToSize(latest.optimizedText, 510);
-    let y = 58;
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    lines.forEach((line: string) => {
-      if (y > 730) { pdf.addPage(); y = 58; }
-      pdf.text(line, margin, y);
-      y += 15;
-    });
-    prepareExport(pdf.output("blob"), "tailored-resume.pdf", "PDF");
+    const { renderStructuredPdfResume } = await import("@/lib/resumeExport");
+    const model = buildResumeDocumentModel(latest.resume, latest.optimizedText, latest.settings.template as ResumeTemplateName);
+    prepareExport(renderStructuredPdfResume(model), "tailored-resume.pdf", "ATS-ready PDF");
     } catch { setMessage("The quality gate could not run. Please try the export again."); }
   };
   const exportDocx = async () => {
     try {
       const latest = await recheckBeforeExport();
       if (!latest) return;
-      const children = latest.optimizedText.split("\n").map(line => new Paragraph({ children: [new TextRun({ text: line || " ", bold: /^[A-Z][A-Z\s&]+$/.test(line) })], spacing: { after: line ? 90 : 25 } }));
-      const document = new Document({ sections: [{ properties: {}, children }] });
-      prepareExport(await Packer.toBlob(document), "tailored-resume.docx", "DOCX");
+      const { renderStructuredDocxResume } = await import("@/lib/resumeExport");
+      const model = buildResumeDocumentModel(latest.resume, latest.optimizedText, latest.settings.template as ResumeTemplateName);
+      prepareExport(await renderStructuredDocxResume(model), "tailored-resume.docx", "ATS-ready DOCX");
     } catch { setMessage("The quality gate could not run. Please try the export again."); }
   };
 
@@ -269,18 +330,20 @@ export default function Home() {
             <div className="panel-body">
               <div className="intake-grid">
                 <div className="input-card">
-                  <div className="input-label"><span>Your master resume</span><span className="mini-label">SOURCE</span></div>
-                  <textarea className="resume-textarea" value={resumeText} onChange={event => setResumeText(event.target.value)} placeholder="Paste the text of your existing resume here…" aria-label="Master resume text" />
-                  <div className="input-footer"><label className="file-upload"><Upload size={13} /> Upload PDF, DOCX, or TXT<input type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={event => handleUpload(event, "resume")} /></label><span className="word-count">{words(resumeText)} words</span></div>
+                  <div className="input-label"><span>Your master resume</span><span className="mini-label">{uploadedDocuments.resume?.fileType || "SOURCE"}</span></div>
+                  <textarea className="resume-textarea" value={resumeText} onChange={event => setResumeText(event.target.value)} placeholder="Upload a PDF or DOCX, or paste your existing resume…" aria-label="Master resume text" />
+                  {uploadedDocuments.resume && <div className={`extraction-card ${uploadedDocuments.resume.warning ? "limited" : ""}`}><FileCheck2 size={14} /><div><strong>{uploadedDocuments.resume.fileName}</strong><span>{uploadedDocuments.resume.fileType}{uploadedDocuments.resume.pageCount ? ` · ${uploadedDocuments.resume.pageCount} page${uploadedDocuments.resume.pageCount === 1 ? "" : "s"}` : ""} · {uploadedDocuments.resume.wordCount} words extracted</span>{uploadedDocuments.resume.warning && <em><FileWarning size={11} /> {uploadedDocuments.resume.warning}</em>}</div><button className="quiet-button" type="button" onClick={() => { setUploadedDocuments(previous => ({ ...previous, resume: undefined })); setResumeText(""); }}>Replace</button></div>}
+                  <div className="input-footer"><label className="file-upload"><Upload size={13} /> Upload resume PDF, DOCX, or TXT<input type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={event => handleUpload(event, "resume")} /></label><span className="word-count">{words(resumeText)} words</span></div>
                 </div>
                 <div className="input-card">
-                  <div className="input-label"><span>Target job description</span><span className="mini-label">CONTEXT</span></div>
-                  <textarea className="resume-textarea" value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Paste the full job description here…" aria-label="Job description text" />
-                  <div className="input-footer"><label className="file-upload"><Upload size={13} /> Upload PDF, DOCX, or TXT<input type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={event => handleUpload(event, "job")} /></label><span className="word-count">{words(jobDescription)} words</span></div>
+                  <div className="input-label"><span>Target job description</span><span className="mini-label">{uploadedDocuments.job?.fileType || "CONTEXT"}</span></div>
+                  <textarea className="resume-textarea" value={jobDescription} onChange={event => setJobDescription(event.target.value)} placeholder="Upload the job PDF/DOCX, or paste the complete job description…" aria-label="Job description text" />
+                  {uploadedDocuments.job && <div className={`extraction-card ${uploadedDocuments.job.warning ? "limited" : ""}`}><FileCheck2 size={14} /><div><strong>{uploadedDocuments.job.fileName}</strong><span>{uploadedDocuments.job.fileType}{uploadedDocuments.job.pageCount ? ` · ${uploadedDocuments.job.pageCount} page${uploadedDocuments.job.pageCount === 1 ? "" : "s"}` : ""} · {uploadedDocuments.job.wordCount} words extracted</span>{uploadedDocuments.job.warning && <em><FileWarning size={11} /> {uploadedDocuments.job.warning}</em>}</div><button className="quiet-button" type="button" onClick={() => { setUploadedDocuments(previous => ({ ...previous, job: undefined })); setJobDescription(""); }}>Replace</button></div>}
+                  <div className="input-footer"><label className="file-upload"><Upload size={13} /> Upload job PDF, DOCX, or TXT<input type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" onChange={event => handleUpload(event, "job")} /></label><span className="word-count">{words(jobDescription)} words</span></div>
                 </div>
               </div>
               <div className="action-row">
-                <button className="sample-link" onClick={loadExample}>Load a guided example</button>
+                <div><button className="sample-link" onClick={loadExample}>Load a guided example</button><p className="upload-assurance">Upload first, then review the extracted text before analysis. Text is never silently invented from a document.</p></div>
                 <button className="primary-button" onClick={analyze} disabled={analysis.isPending || words(resumeText) < 20 || words(jobDescription) < 20}>{analysis.isPending ? <><RefreshCw size={14} className="animate-spin" /> Analyzing evidence…</> : <><Sparkles size={14} /> Analyze & tailor <ChevronRight size={14} /></>}</button>
               </div>
               {message && <p className={`toast-message ${message.includes("saved") ? "save-success" : ""}`}>{message}</p>}
@@ -298,7 +361,7 @@ export default function Home() {
               </div>
               <div className="settings-two-col">
                 <div className="field"><label className="field-label">Length</label><select className="select-input" value={settings.pageLength} onChange={event => changeSetting("pageLength", event.target.value as Settings["pageLength"])}><option value="one">One page</option><option value="two">Two pages</option></select></div>
-                <div className="field"><label className="field-label">Template</label><select className="select-input" value={settings.template} onChange={event => changeSetting("template", event.target.value as Settings["template"])}><option value="modern">Modern</option><option value="classic">Classic</option><option value="technical">Technical</option><option value="minimal">Minimal</option></select></div>
+                <div className="field"><label className="field-label">Template</label><select className="select-input" value={settings.template} onChange={event => changeSetting("template", event.target.value as Settings["template"])}><option value="modern">Modern</option><option value="classic">Classic</option><option value="technical">Technical</option><option value="minimal">Minimal</option></select><small className="field-hint">Single-column and ATS-safe.</small></div>
               </div>
               <div className="field"><label className="field-label">Keyword optimization</label><select className="select-input" value={settings.optimizationLevel} onChange={event => changeSetting("optimizationLevel", event.target.value as Settings["optimizationLevel"])}><option value="balanced">Balanced</option><option value="focused">Focused</option><option value="maximum">Maximum supported coverage</option></select></div>
               <div className="toggle-list">
@@ -327,6 +390,8 @@ export default function Home() {
             <div className="score-content"><h3>What the score actually means.</h3><p>{stats?.exact ?? 0} direct match{stats?.exact === 1 ? "" : "es"} and {stats?.gaps ?? 0} evidence gap{stats?.gaps === 1 ? "" : "s"} were found against the analyzed requirements.</p><div className="score-breakdown">{result.score.breakdown.map(item => <div className="score-row" key={item.key}><label>{item.label}</label><strong>{item.score}%</strong><div className="progress-bar"><span style={{ width: `${item.score}%` }} /></div></div>)}</div></div>
           </section>
 
+          <section className="panel keyword-assessment" id="keywords"><header className="panel-header"><div><p className="panel-kicker">JD keyword coverage</p><h2 className="panel-title">See what this role actually asks for.</h2><p className="panel-subtitle">Exact matches, related evidence, and real gaps are calculated directly from the parsed job description.</p></div><span className="tier-badge badge-semantic">{result.job.keywords.length} target terms</span></header><div className="panel-body"><div className="keyword-groups"><div><h3>Required keywords</h3><div className="keyword-chips">{(requiredKeywordTerms.length ? requiredKeywordTerms : result.job.requiredSkills).slice(0, 12).map(keyword => { const match = matchForKeyword(keyword); return <span className={`keyword-chip ${match?.tier || "insufficient"}`} key={keyword}>{keyword}<b>{match ? readableTier[match.tier] : "Gap"}</b></span>; }) || <p className="keyword-empty">No discrete required keywords were detected; review the detailed requirement evidence below.</p>}</div></div><div><h3>Preferred keywords</h3><div className="keyword-chips">{(preferredKeywordTerms.length ? preferredKeywordTerms : result.job.preferredSkills).slice(0, 10).map(keyword => { const match = matchForKeyword(keyword); return <span className={`keyword-chip ${match?.tier || "insufficient"}`} key={keyword}>{keyword}<b>{match ? readableTier[match.tier] : "Gap"}</b></span>; }) || <p className="keyword-empty">No discrete preferred keywords were detected.</p>}</div></div></div><div className="keyword-note"><ShieldCheck size={14} /> Only exact and tightly scoped semantic matches are counted as substantive ATS coverage. Related evidence stays visible but is never promoted into an equivalent claim.</div></div></section>
+
           <section className="panel ats-review-panel"><header className="panel-header"><div><p className="panel-kicker">AI-assisted ATS review</p><h2 className="panel-title">Inspect the generated resume against this exact job.</h2><p className="panel-subtitle">The review reads the tailored output against the pasted job description while retaining the evidence and truth constraints used to create it.</p></div><span className="tier-badge badge-semantic">Generated review</span></header><div className="panel-body"><div className="ats-review-top"><div className="ats-review-score"><strong>{result.atsReview.score}<small>/100</small></strong><span>{result.atsReview.label}</span></div><div><p className="ats-review-summary">{result.atsReview.summary}</p><p className="ats-review-caution">{result.atsReview.caution}</p></div></div><div className="ats-review-grid"><div className="ats-review-column"><h3>Supported in the generated resume</h3>{result.atsReview.directMatches.length ? result.atsReview.directMatches.map(item => <span className="review-chip good" key={item}>{item}</span>) : <p>No direct evidence was identified.</p>}</div><div className="ats-review-column"><h3>Related, not equivalent</h3>{result.atsReview.relatedRequirements.length ? result.atsReview.relatedRequirements.map(item => <span className="review-chip related" key={item}>{item}</span>) : <p>No related-only evidence was identified.</p>}</div><div className="ats-review-column"><h3>Evidence gaps</h3>{result.atsReview.gaps.length ? result.atsReview.gaps.map(item => <span className="review-chip gap" key={item}>{item}</span>) : <p>No prioritized gaps were identified.</p>}</div></div><div className="ats-recommendations"><h3>Recommended next checks</h3>{result.atsReview.recommendations.map(item => <p key={item}>{item}</p>)}</div></div></section>
 
           <div className="match-grid" id="intelligence">
@@ -336,9 +401,11 @@ export default function Home() {
 
           <section className="panel"><header className="panel-header"><div><p className="panel-kicker">03 / Before & after</p><h2 className="panel-title">A transparent rewrite.</h2><p className="panel-subtitle">The tailored version prioritizes evidence from your master resume. Every claim is reviewed before export.</p></div><button className="secondary-button" onClick={saveTailoredVersion} disabled={saveVersion.isPending || saveMaster.isPending}><FolderHeart size={14} /> {masterId ? "Save version" : "Save master first"}</button></header><div className="comparison-grid"><div className="document-side"><div className="document-label"><FileText size={12} /> Source resume</div><pre className="document-text">{resumeText}</pre></div><div className="document-side"><div className="document-label"><Sparkles size={12} /> Tailored resume</div><pre className="document-text optimized">{result.optimizedText}</pre></div></div></section>
 
+          {templateModel && <section className={`panel export-template-panel template-${templateModel.template}`}><header className="panel-header"><div><p className="panel-kicker">ATS resume template</p><h2 className="panel-title">Your exported document is structured—not a text dump.</h2><p className="panel-subtitle">This single-column layout preserves headings, hierarchy, and reading order in both the PDF and DOCX files.</p></div><span className="tier-badge badge-exact">{templateModel.template} template</span></header><div className="template-preview-wrap"><article className="template-preview"><header><h2>{templateModel.name}</h2>{templateModel.contact && <p>{templateModel.contact}</p>}</header>{templateModel.sections.map(section => <section key={section.heading}><h3>{section.heading}</h3>{section.lines.map((line, index) => isBulletLine(line) ? <p className="template-bullet" key={`${section.heading}-${index}`}>{line.replace(/^[-•*]\s+/, "")}</p> : <p className="template-line" key={`${section.heading}-${index}`}>{line}</p>)}</section>)}</article></div></section>}
+
           <section className="panel"><header className="panel-header"><div><p className="panel-kicker">Claim provenance</p><h2 className="panel-title">Truth Guard review.</h2><p className="panel-subtitle">Each proposed line points back to the evidence that permits it.</p></div><ShieldCheck size={19} color="#1f5d48" /></header><div className="panel-body"><div className="truth-review">{result.claims.map((claim, index) => { const issue = result.qualityGate.truthIssues.find(item => item.claim === claim.text); return <article className={`claim-card ${issue?.severity ?? ""}`} key={`${claim.section}-${index}`}><div className="claim-meta"><span>{claim.section}</span><span>{issue ? issue.severity : "Supported"}</span></div><blockquote>“{claim.text}”</blockquote><div>{claim.evidenceIds.length ? claim.evidenceIds.map(evidenceId => <span className="evidence-chip" key={evidenceId}>Source: {evidenceId}</span>) : <span className="evidence-chip">No cited source</span>}</div>{issue && <p className="claim-issue">{issue.message}</p>}</article>; })}</div></div></section>
 
-          <section className="panel" id="export"><header className="panel-header"><div><p className="panel-kicker">04 / Final quality gate</p><h2 className="panel-title">Ready only when the evidence is.</h2><p className="panel-subtitle">The quality gate runs again before every PDF, DOCX, or text export.</p></div><span className={`tier-badge ${result.qualityGate.ready ? "badge-exact" : "badge-insufficient"}`}>{result.qualityGate.ready ? "Ready to export" : "Review required"}</span></header><div className="panel-body"><div className="quality-grid">{result.qualityGate.checks.map(check => <div className="quality-item" key={check.key}><span className={`quality-status status-${check.status}`} /><div><strong>{check.label}</strong><p>{check.detail}</p></div></div>)}</div><div className="export-footer"><div className="export-note"><LockKeyhole size={14} /><span>Exports preserve a conventional, text-based reading order. The master resume is maintained separately from every tailored version.</span></div>{preparedExport && <a className="prepared-download" href={preparedExport.url} download={preparedExport.fileName}><Download size={13} /> Download prepared {preparedExport.label}</a>}<div className="export-actions"><button className="secondary-button" onClick={exportText} aria-label="Prepare plain text resume download"><Download size={14} /> Prepare text</button><button className="secondary-button" onClick={exportPdf} disabled={!result.qualityGate.ready} aria-label="Run the quality gate and prepare a PDF resume download"><Download size={14} /> Prepare PDF</button><button className="primary-button" onClick={exportDocx} disabled={!result.qualityGate.ready} aria-label="Run the quality gate and prepare a DOCX resume download"><Download size={14} /> Prepare DOCX</button></div></div></div></section>
+          <section className="panel" id="export"><header className="panel-header"><div><p className="panel-kicker">04 / Final quality gate</p><h2 className="panel-title">Ready only when the evidence is.</h2><p className="panel-subtitle">The quality gate runs again before every PDF, DOCX, or text export.</p></div><span className={`tier-badge ${result.qualityGate.ready ? "badge-exact" : "badge-insufficient"}`}>{result.qualityGate.ready ? "Ready to export" : "Review required"}</span></header><div className="panel-body"><div className="quality-grid">{result.qualityGate.checks.map(check => <div className="quality-item" key={check.key}><span className={`quality-status status-${check.status}`} /><div><strong>{check.label}</strong><p>{check.detail}</p></div></div>)}</div><div className="export-footer"><div className="export-note"><LockKeyhole size={14} /><span>PDF and DOCX exports use the selected structured, single-column ATS template. The master resume remains separately preserved.</span></div>{preparedExport && <a className="prepared-download" href={preparedExport.url} download={preparedExport.fileName}><Download size={13} /> Download prepared {preparedExport.label}</a>}<div className="export-actions"><button className="secondary-button" onClick={exportText} aria-label="Prepare plain text resume download"><Download size={14} /> Prepare text</button><button className="secondary-button" onClick={exportPdf} disabled={!result.qualityGate.ready} aria-label="Run the quality gate and prepare a PDF resume download"><Download size={14} /> Prepare ATS PDF</button><button className="primary-button" onClick={exportDocx} disabled={!result.qualityGate.ready} aria-label="Run the quality gate and prepare a DOCX resume download"><Download size={14} /> Prepare ATS DOCX</button></div></div></div></section>
         </section>}
       </main>
     </div>

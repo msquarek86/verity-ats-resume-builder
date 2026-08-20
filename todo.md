@@ -40,3 +40,13 @@
 - [x] Refresh the public Verity deployment to the checkpoint containing the tracker, ATS review, and walkthrough changes.
 - [x] Verify the application tracker is visible on the refreshed public deployment.
 - [x] Run the synthetic guided example on the refreshed public site and confirm the generated-resume ATS review appears.
+- [x] Audit the current PDF/DOCX upload extraction, generated document export, and JD keyword-review behavior against the reported feedback.
+- [x] Replace text-only intake fallbacks with clear PDF/DOCX extraction states, extraction previews, and correction controls.
+- [x] Create structured, ATS-safe resume document templates for genuine PDF and DOCX exports.
+- [x] Expand JD keyword coverage, evidence matching, and ATS recommendations with transparent supporting context.
+- [x] Add regression tests for uploaded documents, template rendering, keyword assessment, and PDF/DOCX output.
+- [x] Verify corrected numeric JD requirement wording and ATS guidance in the browser after the parser fix.
+- [x] Add a selectable-text PDF upload extraction regression test and rerun the full suite.
+- [x] Run and record an end-to-end revised upload-to-analysis-to-structured-export browser check.
+- [ ] Verify and publish the revised upload-to-export workflow on the public Verity site.
+- [x] Match supported numeric years-of-experience evidence to numeric JD requirements and preserve the original wording in ATS guidance.

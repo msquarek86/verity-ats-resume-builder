@@ -44,4 +44,25 @@ describe("evidence-first ATS engine", () => {
     expect(review.gaps).not.toContain("SQL");
     expect(review.caution).toContain("not an employer ATS score");
   });
+
+  it("separates JD section labels from the actual required and preferred keywords", () => {
+    const job = parseJobDescriptionDeterministically(`Business Analyst\nRequired qualifications\n• SQL and Tableau experience\n• 3+ years of analytics experience\nPreferred qualifications\n• Python and Agile experience\nResponsibilities\n• Partner with product stakeholders to define metrics`);
+
+    expect(job.requiredSkills).toEqual(expect.arrayContaining(["SQL", "Tableau"]));
+    expect(job.preferredSkills).toEqual(expect.arrayContaining(["Python", "Agile"]));
+    expect(job.requirements.map(item => item.name)).toContain("3+ years of analytics experience");
+    expect(job.requirements.map(item => item.name)).not.toContain("Required qualifications");
+    expect(job.requirements.map(item => item.name)).not.toContain("Preferred qualifications");
+  });
+
+  it("treats documented years of experience as evidence for a numeric JD requirement without altering the requirement wording", () => {
+    const resume = parseResumeDeterministically(`Avery Morgan\n\nPROFESSIONAL SUMMARY\nData analyst with five years of experience building Tableau dashboards and SQL reporting.\n\nEXPERIENCE\nData Analyst | Northstar\n• Built recurring Tableau dashboards for revenue reporting.\n\nSKILLS\nSQL, Tableau\n\nEDUCATION\nB.S. Information Systems`);
+    const job = parseJobDescriptionDeterministically(`Data Analyst\nRequired qualifications\n• 4+ years of data analytics experience`);
+    const matches = createRequirementMatches(resume, job);
+    const review = analyzeGeneratedResumeForAts(resumeText, job);
+
+    expect(matches.find(match => match.requirement === "4+ years of data analytics experience")?.tier).toBe("exact");
+    expect(matches.find(match => match.requirement === "4+ years of data analytics experience")?.explanation).toContain("meets this requirement");
+    expect(review.recommendations.join(" ")).not.toContain("4+ Years");
+  });
 });
