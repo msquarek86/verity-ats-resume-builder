@@ -48,5 +48,5 @@
 - [x] Verify corrected numeric JD requirement wording and ATS guidance in the browser after the parser fix.
 - [x] Add a selectable-text PDF upload extraction regression test and rerun the full suite.
 - [x] Run and record an end-to-end revised upload-to-analysis-to-structured-export browser check.
-- [ ] Verify and publish the revised upload-to-export workflow on the public Verity site.
+- [x] Verify and publish the revised upload-to-export workflow on the public Verity site.
 - [x] Match supported numeric years-of-experience evidence to numeric JD requirements and preserve the original wording in ATS guidance.
