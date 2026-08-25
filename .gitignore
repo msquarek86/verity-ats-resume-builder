@@ -32,7 +32,6 @@ Thumbs.db
 
 # Logs
 logs
-!job-assistant/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
